@@ -1,4 +1,6 @@
 # See docs/CMake.html for instructions about how to build LLVM with CMake.
+
+# cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_INSTALL_PREFIX=../my-clang-install
 cmake_minimum_required(VERSION 3.20.0)
 
 include(CMakeDependentOption)

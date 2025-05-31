@@ -6802,6 +6802,25 @@ static void handleVTablePointerAuthentication(Sema &S, Decl *D,
       CustomDiscriminationValue));
 }
 
+template<typename ReflnyaAttr>
+static void handleReflnyaAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  llvm::SmallVector<StringRef, 4> Tags;
+  llvm::SmallVector<std::string, 4> TempStorage;
+  for (unsigned i = 0; i < AL.getNumArgs(); ++i) {
+    if (auto *StrExpr = dyn_cast<StringLiteral>(AL.getArgAsExpr(i))) {
+      TempStorage.emplace_back(StrExpr->getString().str());
+      Tags.push_back(TempStorage.back());
+    }
+  }
+  auto *Attr = ReflnyaAttr::Create(
+    S.Context,
+    Tags.data(), Tags.size(),
+    AL.getRange()
+  );
+  D->addAttr(Attr);
+}
+
+
 //===----------------------------------------------------------------------===//
 // Top Level Sema Entry Points
 //===----------------------------------------------------------------------===//
@@ -6868,9 +6887,34 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
                               : diag::warn_unhandled_ms_attribute_ignored)
           << AL.getAttrName() << AL.getRange();
     } else {
-      S.Diag(AL.getNormalizedRange().getBegin(),
-             diag::warn_unknown_attribute_ignored)
-          << "'" + AL.getNormalizedFullName() + "'" << AL.getNormalizedRange();
+      if (AL.getScopeName() && AL.getScopeName()->isStr("reflnya")) {
+        std::string tag = "reflnya::" + AL.getAttrName()->getName().str();
+        tag+="paramNum:"+std::to_string(AL.getNumArgs());
+        
+        bool MustDelay = false;
+        if (S.checkCommonAttributeFeatures(D, AL, MustDelay))
+            return;  // 参数检查失败
+        if (AL.getNumArgs() > 0) {
+            if (auto *Str = dyn_cast<StringLiteral>(AL.getArgAsExpr(0))) {
+                tag += "(\"" + Str->getString().str() + "\"";
+                for (unsigned i = 1; i < AL.getNumArgs(); ++i) {
+                    if (auto *ArgStr = dyn_cast<StringLiteral>(AL.getArgAsExpr(i))) {
+                        tag += ", \"" + ArgStr->getString().str() + "\"";
+                    }
+                }
+                tag += ")";
+            }
+        }
+
+        auto *anno = AnnotateAttr::Create(S.Context,tag,AL);
+
+        // 手动附加到 Decl
+        D->addAttr(anno);
+      } else {
+        S.Diag(AL.getNormalizedRange().getBegin(),
+               diag::warn_unknown_attribute_ignored)
+            << "'" + AL.getNormalizedFullName() + "'" << AL.getNormalizedRange();
+      }
     }
     return;
   }
@@ -7712,6 +7756,26 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_VTablePointerAuthentication:
     handleVTablePointerAuthentication(S, D, AL);
     break;
+  case ParsedAttr::AT_ReflnyaClass:
+    handleReflnyaAttr<ReflnyaClassAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_ReflnyaVar:
+    handleReflnyaAttr<ReflnyaVarAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_ReflnyaParmVar:
+    handleReflnyaAttr<ReflnyaParmVarAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_ReflnyaFunction:
+    handleReflnyaAttr<ReflnyaFunctionAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_ReflnyaEnum:
+    handleReflnyaAttr<ReflnyaEnumAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_ReflnyaProperty:
+    handleReflnyaAttr<ReflnyaPropertyAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_ReflnyaMeta:
+    handleReflnyaAttr<ReflnyaMetaAttr>(S, D, AL);
   }
 }
 

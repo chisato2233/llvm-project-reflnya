@@ -5059,3 +5059,61 @@ def NonString : InheritableAttr {
   let Subjects = SubjectList<[Var, Field]>;
   let Documentation = [NonStringDocs];
 }
+
+def ReflnyaClass : Attr {
+  let Spellings = [CXX11<"reflnya", "class">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let Documentation = [Undocumented];
+}
+
+def ReflnyaProperty : Attr {
+  let Spellings = [CXX11<"reflnya", "property">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[Field]>;
+  let Documentation = [Undocumented];
+}
+
+def ReflnyaEnum : Attr {
+  let Spellings = [CXX11<"reflnya", "enum">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[Enum]>;
+  let Documentation = [Undocumented];
+}
+
+def ReflnyaFunction : Attr {
+  let Spellings = [CXX11<"reflnya", "function">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[Function, CXXMethod]>;
+  let Documentation = [Undocumented];
+}
+
+def ReflnyaVar : Attr {
+  let Spellings = [CXX11<"reflnya", "var">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[Var]>;
+  let Documentation = [Undocumented];
+}
+
+def ReflnyaParmVar : Attr {
+  let Spellings = [CXX11<"reflnya", "parm_var">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[ParmVar]>;
+  let Documentation = [Undocumented];
+}
+
+def ReflnyaMeta : Attr {
+  let Spellings = [CXX11<"reflnya", "meta">];
+  let Args = [VariadicStringArgument<"Tags">];
+  let Subjects = SubjectList<[
+    CXXRecord,
+    Field,    
+    Function, 
+    CXXMethod,
+    Enum,
+    Var,    
+    ParmVar,
+    TypeAlias
+  ]>;
+  let Documentation = [Undocumented];
+}
