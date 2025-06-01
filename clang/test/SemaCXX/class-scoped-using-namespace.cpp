@@ -92,13 +92,16 @@ private:
   class Inner {
   public:
     void test() {
-      // expected-error@+1 {{use of undeclared identifier 'value'}}
-      int x = value;  // 应该失败，内部类无法访问外部类的private using
+      int x = value;  // OK: 嵌套类可以访问外部类的private using namespace
+      func();         // OK: 设计上允许
+      Helper h;       // OK: 设计上允许
     }
   };
   
 public:
   void test() {
     int x = value;  // OK: 可以在同一个类中访问
+    func();         // OK
+    Helper h;       // OK
   }
 }; 

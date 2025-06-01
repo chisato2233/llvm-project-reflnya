@@ -27,10 +27,12 @@ public:
 class AccessTestDerived : public AccessTest {
 public:
   void test() {
-    // expected-error@+1 {{use of undeclared identifier 'helper_value'}}
+    // expected-error@+2 {{use of undeclared identifier 'helper_value'}}
+    // expected-note@4 {{'Utils::helper_value' declared here}}
     int x = helper_value;  // 应该失败：无法访问基类的private using
     
-    // expected-error@+1 {{use of undeclared identifier 'helper_func'}}
+    // expected-error@+2 {{use of undeclared identifier 'helper_func'}}  
+    // expected-note@5 {{'Utils::helper_func' declared here}}
     helper_func();         // 应该失败
   }
 }; 
