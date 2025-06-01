@@ -12535,6 +12535,60 @@ void Sema::PushUsingDirective(Scope *S, UsingDirectiveDecl *UDir) {
     S->PushUsingDirective(UDir);
 }
 
+
+/// ActOnClassScopedUsingNamespace - Called on class-scoped using namespace declaration
+Decl *Sema::ActOnClassScopedUsingNamespace(Scope *S,
+                                           SourceLocation UsingLoc,
+                                           SourceLocation NamespaceLoc, 
+                                           CXXScopeSpec &SS,
+                                           SourceLocation IdentLoc,
+                                           IdentifierInfo *NamespcName,
+                                           SourceLocation DeclEnd,
+                                           const ParsedAttributesView &AttrList,
+                                           AccessSpecifier AS) {
+  
+  LookupResult R(*this, NamespcName, IdentLoc, LookupNamespaceName);
+  LookupParsedName(R, S, &SS, QualType());
+  
+  if (R.empty()) {
+    Diag(IdentLoc, diag::err_expected_namespace_name) << SS.getRange();
+    return nullptr;
+  }
+  
+  if (R.isAmbiguous())
+    return nullptr;
+    
+  NamespaceDecl *Named = R.getAsSingle<NamespaceDecl>();
+  if (!Named) {
+    Diag(IdentLoc, diag::err_expected_namespace_name) << SS.getRange();
+    Diag(R.getFoundDecl()->getLocation(), diag::note_entity_declared_at)
+        << R.getFoundDecl();
+    return nullptr;
+  }
+  
+  DeclContext *EffectiveDC = CurContext;
+  while (EffectiveDC && !EffectiveDC->isFileContext()) {
+    EffectiveDC = EffectiveDC->getParent();
+  }
+  
+
+  UsingDirectiveDecl *UD = UsingDirectiveDecl::Create(
+    Context, CurContext, UsingLoc, NamespaceLoc,
+    SS.getWithLocInContext(Context), IdentLoc, Named,
+    EffectiveDC);  // 使用enclosing namespace作为公共祖先
+  
+
+  UD->setIsClassScoped(true);
+  
+  UD->setAccess(AS);
+  
+  CurContext->addDecl(UD);
+
+  ProcessDeclAttributeList(S, UD, AttrList);
+  
+  return UD;
+}
+
 Decl *Sema::ActOnUsingDeclaration(Scope *S, AccessSpecifier AS,
                                   SourceLocation UsingLoc,
                                   SourceLocation TypenameLoc, CXXScopeSpec &SS,

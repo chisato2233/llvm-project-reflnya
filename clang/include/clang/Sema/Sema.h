@@ -5319,6 +5319,13 @@ public:
   findInheritingConstructor(SourceLocation Loc, CXXConstructorDecl *BaseCtor,
                             ConstructorUsingShadowDecl *DerivedShadow);
 
+  Decl *ActOnClassScopedUsingNamespace(Scope *CurScope, SourceLocation UsingLoc,
+                                       SourceLocation NamespaceLoc,
+                                       CXXScopeSpec &SS, SourceLocation IdentLoc,
+                                       IdentifierInfo *NamespcName,
+                                       SourceLocation DeclEnd,
+                                       const ParsedAttributesView &AttrList,
+                                       AccessSpecifier AS);
   Decl *ActOnUsingDeclaration(Scope *CurScope, AccessSpecifier AS,
                               SourceLocation UsingLoc,
                               SourceLocation TypenameLoc, CXXScopeSpec &SS,

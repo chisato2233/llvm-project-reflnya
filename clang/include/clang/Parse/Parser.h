@@ -3413,6 +3413,16 @@ private:
   MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(Declarator &D,
                                                           VirtSpecifiers &VS);
 
+  /// Parse a class-scoped using namespace declaration.
+  ///
+  /// \verbatim
+  ///       using-namespace-declaration:
+  ///         'using' 'namespace' nested-name-specifier[opt] namespace-name ';'
+  /// \endverbatim
+  ///
+  DeclGroupPtrTy ParseClassScopedUsingNamespace(SourceLocation UsingLoc,
+                                                ParsedAttributes &Attrs,
+                                                AccessSpecifier AS);
   /// ParseCXXClassMemberDeclaration - Parse a C++ class member declaration.
   ///
   /// \verbatim

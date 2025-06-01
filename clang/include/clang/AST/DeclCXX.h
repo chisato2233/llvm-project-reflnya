@@ -3087,6 +3087,9 @@ class UsingDirectiveDecl : public NamedDecl {
   /// namespace.
   DeclContext *CommonAncestor;
 
+  /// Whether this using-directive is class-scoped.
+  bool IsClassScoped = false;
+
   UsingDirectiveDecl(DeclContext *DC, SourceLocation UsingLoc,
                      SourceLocation NamespcLoc,
                      NestedNameSpecifierLoc QualifierLoc,
@@ -3095,7 +3098,8 @@ class UsingDirectiveDecl : public NamedDecl {
                      DeclContext *CommonAncestor)
       : NamedDecl(UsingDirective, DC, IdentLoc, getName()), UsingLoc(UsingLoc),
         NamespaceLoc(NamespcLoc), QualifierLoc(QualifierLoc),
-        NominatedNamespace(Nominated), CommonAncestor(CommonAncestor) {}
+        NominatedNamespace(Nominated), CommonAncestor(CommonAncestor)
+        {}
 
   /// Returns special DeclarationName used by using-directives.
   ///
@@ -3162,6 +3166,9 @@ public:
   SourceRange getSourceRange() const override LLVM_READONLY {
     return SourceRange(UsingLoc, getLocation());
   }
+
+  bool isClassScoped() const { return IsClassScoped; }
+  void setIsClassScoped(bool Value) { IsClassScoped = Value; }
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == UsingDirective; }

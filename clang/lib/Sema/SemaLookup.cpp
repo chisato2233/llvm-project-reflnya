@@ -119,6 +119,8 @@ namespace {
         DeclContext *Ctx = S->getEntity();
         if (Ctx && Ctx->isFileContext()) {
           visit(Ctx, Ctx);
+        } else if(Ctx && Ctx->isRecord()){
+          visit(Ctx, InnermostFileDC);
         } else if (!Ctx || Ctx->isFunctionOrMethod()) {
           for (auto *I : S->using_directives())
             if (SemaRef.isVisible(I))
@@ -162,8 +164,17 @@ namespace {
         for (auto *UD : DC->using_directives()) {
           DeclContext *NS = UD->getNominatedNamespace();
           if (SemaRef.isVisible(UD) && visited.insert(NS).second) {
-            addUsingDirective(UD, EffectiveDC);
-            queue.push_back(NS);
+            if (UD->isClassScoped()) {
+              // 对于class-scoped using，检查访问控制
+              if (isClassScopedUsingAccessible(UD, DC)) {
+                  addUsingDirective(UD, EffectiveDC);
+                  queue.push_back(NS);
+              }
+            } else {
+              // 普通using directive正常处理
+              addUsingDirective(UD, EffectiveDC);
+              queue.push_back(NS);
+            }
           }
         }
 
@@ -190,6 +201,35 @@ namespace {
       Common = Common->getPrimaryContext();
 
       list.push_back(UnqualUsingEntry(UD->getNominatedNamespace(), Common));
+    }
+
+    bool isClassScopedUsingAccessible( UsingDirectiveDecl *UD, DeclContext *LookupContext) {
+      
+      // 如果不是class-scoped，直接允许
+      if (!UD->isClassScoped())
+          return true;
+      
+      // 获取using directive声明的类
+      auto *UsingClass = dyn_cast<CXXRecordDecl>(UD->getDeclContext());
+      if (!UsingClass)
+          return false;
+      
+      // 获取当前查找的类
+      auto *LookupClass = dyn_cast<CXXRecordDecl>(LookupContext);
+      if (!LookupClass)
+          return false;
+      
+      // ★ Private using：只有在同一个类中才可见
+      if (UD->getAccess() == AS_private) {
+          return UsingClass == LookupClass;
+      }
+      
+      // TODO: 未来实现protected和public的逻辑
+      // if (UD->getAccess() == AS_protected) { ... }
+      // if (UD->getAccess() == AS_public) { ... }
+      
+      // 默认情况下不允许访问
+      return false;
     }
 
     void done() { llvm::sort(list, UnqualUsingEntry::Comparator()); }
@@ -1342,9 +1382,11 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
   // When performing a scope lookup, we want to find local extern decls.
   FindLocalExternScope FindLocals(R);
 
+  // 对于非命名空间的查找，我们只考虑当前作用域的声明
   for (; S && !isNamespaceOrTranslationUnitScope(S); S = S->getParent()) {
     bool SearchNamespaceScope = true;
     // Check whether the IdResolver has anything in this scope.
+    // 对于成员的查找
     for (; I != IEnd && S->isDeclScope(*I); ++I) {
       if (NamedDecl *ND = R.getAcceptableDecl(*I)) {
         if (NameKind == LookupRedeclarationWithLinkage &&
@@ -1388,8 +1430,12 @@ bool Sema::CppLookupName(LookupResult &R, Scope *S) {
       return false;
     }
 
+    //在包含声明上下文的块（类/函数）中查找
     if (DeclContext *Ctx = S->getLookupEntity()) {
+      //最近的非透明上下文
       DeclContext *OuterCtx = findOuterContext(S);
+      
+      //此循环只会在一个声明上下文的范围内查找，不会查找外层上下文
       for (; Ctx && !Ctx->Equals(OuterCtx); Ctx = Ctx->getLookupParent()) {
         // We do not directly look into transparent contexts, since
         // those entities will be found in the nearest enclosing

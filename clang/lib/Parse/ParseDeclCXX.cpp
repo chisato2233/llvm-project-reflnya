@@ -2694,6 +2694,65 @@ void Parser::MaybeParseAndDiagnoseDeclSpecAfterCXX11VirtSpecifierSeq(
   }
 }
 
+
+/// ParseClassScopedUsingNamespace - Parse a class-scoped using namespace declaration
+/// 
+/// using-namespace-declaration:
+///   'using' 'namespace' nested-name-specifier[opt] namespace-name ';'
+///
+Parser::DeclGroupPtrTy Parser::ParseClassScopedUsingNamespace(
+    SourceLocation UsingLoc, ParsedAttributes &Attrs, AccessSpecifier AS) {
+  
+  assert(Tok.is(tok::kw_namespace) && "Expected 'namespace' keyword");
+  
+  // 消费 'namespace' token
+  SourceLocation NamespaceLoc = ConsumeToken();
+  
+  // 解析可选的 nested-name-specifier (例如 std::chrono::)
+  CXXScopeSpec SS;
+  if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
+                                     /*ObjectHasErrors=*/false,
+                                     /*EnteringContext=*/true)) {
+    // 解析scope specifier出错
+    SkipUntil(tok::semi, StopBeforeMatch);
+    return nullptr;
+  }
+  
+  // 解析命名空间名称
+  SourceLocation IdentLoc;
+  IdentifierInfo *NamespcName = nullptr;
+  
+  if (Tok.is(tok::identifier)) {
+    NamespcName = Tok.getIdentifierInfo();
+    IdentLoc = ConsumeToken();
+  } else {
+    Diag(Tok, diag::err_expected) << tok::identifier;
+    SkipUntil(tok::semi, StopBeforeMatch);
+    return nullptr;
+  }
+  
+  // 期望分号
+  SourceLocation DeclEnd;
+  if (ExpectAndConsume(tok::semi, diag::err_expected_after, 
+                       "using namespace declaration")) {
+    SkipUntil(tok::semi, StopBeforeMatch);
+    return nullptr;
+  }
+  DeclEnd = PrevTokLocation;
+  
+  // 调用语义分析创建AST节点
+  Decl *UsingDir = Actions.ActOnClassScopedUsingNamespace(
+      getCurScope(), UsingLoc, NamespaceLoc, SS, IdentLoc, 
+      NamespcName, DeclEnd, Attrs, AS);
+  
+  if (!UsingDir)
+    return nullptr;
+    
+  return DeclGroupPtrTy::make(DeclGroupRef(UsingDir));
+}
+
+
+
 Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclaration(
     AccessSpecifier AS, ParsedAttributes &AccessAttrs,
     ParsedTemplateInfo &TemplateInfo, ParsingDeclRAIIObject *TemplateDiags) {
@@ -2820,9 +2879,10 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclaration(
     }
 
     if (Tok.is(tok::kw_namespace)) {
-      Diag(UsingLoc, diag::err_using_namespace_in_class);
-      SkipUntil(tok::semi, StopBeforeMatch);
-      return nullptr;
+      // Standard C++ forbids using-namespace in a class.
+      // Diag(UsingLoc, diag::err_using_namespace_in_class);
+      // SkipUntil(tok::semi, StopBeforeMatch);
+      return ParseClassScopedUsingNamespace(UsingLoc, DeclAttrs, AS);
     }
     SourceLocation DeclEnd;
     // Otherwise, it must be a using-declaration or an alias-declaration.
