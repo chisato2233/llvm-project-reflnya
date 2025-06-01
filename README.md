@@ -13,7 +13,7 @@
 
 ```cpp
 // header.h
-using namespace std;  // 💥 污染所有包含此头文件的代码
+using namespace std;  // 污染所有包含此头文件的代码
 
 class MyClass {
     vector<int> data;  // 使用std::vector
@@ -25,7 +25,7 @@ class MyClass {
 // header.h  
 class MyClass {
 private:
-    using namespace std;  // ✅ 只在MyClass内部生效
+    using namespace std;  // 只在MyClass内部生效
     
 public:
     void process() {
@@ -35,60 +35,154 @@ public:
 };
 
 // 外部不受影响
-vector<int> global_var;  // ❌ 错误：未声明的标识符
+vector<int> global_var;  //错误：未声明的标识符
 ```
 
-## 语法特性
+## 语言规范定义
 
-### 基本语法
+### 语法 (Grammar)
+
+#### class-member-specification:
+```
+member-declaration
+member-declaration class-member-specification
+
+member-declaration:
+    decl-specifier-seq_opt member-declarator-list_opt ;
+    function-definition
+    using-declaration
+    using-directive                    // 新增
+    static_assert-declaration
+    template-declaration
+    alias-declaration
+    empty-declaration
+```
+
+#### using-directive:
+```
+access-specifier:                      // 新增：访问控制修饰
+    using namespace nested-name-specifier_opt namespace-name ;
+```
+
+### 语义规则 (Semantic Rules)
+
+#### 3.4.6 class-scoped using-directive [namespace.classusing]
+
+1. **作用域 (Scope)**
+   - class-scoped using-directive的作用域 (scope) 是其直接出现的类作用域 (class scope)
+   - 该using-directive在其出现点之后的所有类成员中生效
+   - 作用域不延伸到嵌套类 (nested class)，除非该嵌套类没有自己的class-scoped using-directive
+
+2. **查找语义 (Lookup Semantics)**  
+   在类作用域 (class scope) 内进行无限定名称查找 (unqualified name lookup) 时：
+   ```
+   3.4.1.1 对于在类C中查找名称N：
+   a) 首先在C中查找N的直接声明
+   b) 然后在C的基类中查找N
+   c) 然后应用C中的using-declaration
+   d) 然后应用C中的class-scoped using-directive  // 新增步骤
+   e) 最后应用外围作用域的using-directive
+   ```
+
+3. **访问控制 (Access Control)**
+   - class-scoped using-directive受类成员访问控制规则约束
+   - `private` using-directive：仅在声明类内部可访问，不被继承
+   - `protected` using-directive：在声明类及其派生类中可访问 *(计划实现)*
+   - `public` using-directive：在所有可访问该类的上下文中可访问 *(计划实现)*
+
+4. **继承 (Inheritance)**
+   ```
+   11.2.x class-scoped using-directive继承规则：
+   - private class-scoped using-directive不被任何派生类继承
+   - protected class-scoped using-directive仅被public和protected继承的派生类继承
+   - public class-scoped using-directive被所有派生类继承
+   ```
+
+5. **嵌套类访问 (Nested Class Access)**  
+   ```
+   11.12.x 嵌套类访问规则：
+   嵌套类可以访问其直接或间接外围类 (enclosing class) 的所有class-scoped using-directive，
+   无论其访问说明符为何，遵循现有的嵌套类访问语义。
+   ```
+
+### 名称查找详细规则 (Detailed Lookup Rules)
+
+#### 3.4.1.x class-scoped using-directive查找
+
+对于在类`C`的成员函数中出现的无限定标识符`id`：
+
+1. **局部查找阶段**：
+   - 在当前函数作用域中查找`id`
+   - 在类`C`中查找`id`的直接声明
+   - 在`C`的基类中查找`id`
+
+2. **using-declaration阶段**：
+   - 应用类`C`中所有可访问的using-declaration
+
+3. **class-scoped using-directive阶段** *(新增)*：
+    - 应用类`C`声明上下文中所有using-directive
+
+4. **外围using-directive阶段**：
+   - 应用外围命名空间作用域的using-directive
+
+#### 歧义解决 (Ambiguity Resolution)
+
+当多个class-scoped using-directive引入相同名称时：
 ```cpp
-class MyClass {
-private:
-    using namespace some_namespace;  // 私有using namespace
+namespace A { int x; }
+namespace B { int x; }
 
+class C {
+private:
+    using namespace A;
+    using namespace B;
 public:
-    void func() {
-        // 可以使用some_namespace中的符号
+    void f() {
+        int y = x;  // 错误：歧义，A::x 和 B::x 都可见
     }
 };
 ```
 
-### 访问控制语义
-- **Private**: 只在声明的class内可见，不被继承 *(当前实现)*
-- **Protected**: 被protected继承的派生类可见 *(计划中)*  
-- **Public**: 所有派生类可见 *(计划中)*
+### 实现定义行为 (Implementation-Defined Behavior)
 
-### 嵌套类语义
-```cpp
-class Outer {
-private:
-    using namespace A;
-    
-    class Inner {
-    public:
-        void test() {
-            // ✅ 可以访问A中的符号（嵌套类可以访问外部类private成员）
-        }
-    };
-};
-```
+1. **模板中的行为**：
+   - class-scoped using-directive在模板实例化时的具体行为是实现定义的
+   - 在模板特化中的表现未指定
 
-### 继承语义
-```cpp
-class Base {
-private:
-    using namespace A;
-public:
-    void test() { /* 可以使用A中的符号 */ }
-};
+2. **编译时计算**：
+   - constexpr上下文中使用class-scoped using-directive引入的名称的行为是实现定义的
 
-class Derived : public Base {
-public:
-    void test() {
-        // ❌ 不能访问A中的符号（private using不被继承）
-    }
-};
-```
+### 与现有标准的关系 (Relationship with Existing Standard)
+
+#### 与7.3.4 using-directive的差异
+
+| 特性 | 标准using-directive | class-scoped using-directive |
+|------|-------------------|------------------------------|
+| 作用域 | 出现点到最近外围命名空间 | 限制在声明类内部 |
+| 继承性 | N/A | 受访问控制限制 |
+| 访问控制 | 无 | private/protected/public |
+| 查找优先级 | 最低 | 介于using-declaration和标准using-directive之间 |
+
+#### 与11.9.3 using-declaration的关系
+
+class-scoped using-directive是using-declaration的概念扩展：
+- using-declaration引入特定名称到类作用域
+- class-scoped using-directive引入整个命名空间到类作用域，但保持命名空间语义
+
+### 格式良好性要求 (Well-formedness Requirements)
+
+一个包含class-scoped using-directive的程序是格式良好的，当且仅当：
+
+1. 被提名的命名空间在using-directive的出现点可见
+2. 该using-directive不会导致类定义的递归依赖
+3. 访问控制说明符在类定义中有效
+
+### 诊断要求 (Diagnostic Requirements)
+
+实现应当诊断以下情况：
+- 在非类作用域中使用class-scoped using-directive语法
+- 提名不存在的命名空间
+- 在访问控制违规的上下文中使用class-scoped using-directive
 
 ## 实现状态
 
@@ -246,4 +340,5 @@ git push origin main
 
 ---
 
-*最后更新：2024年12月*
+*最后更新：2025年5月*
+```
